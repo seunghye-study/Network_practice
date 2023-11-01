@@ -22,7 +22,7 @@ int main()
 	if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 		return 0;
 
-	SOCKET clientSocket = ::socket(AF_INET, SOCK_STREAM, 0);
+	SOCKET clientSocket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (clientSocket == 0) return 0;
 
 
@@ -35,20 +35,24 @@ int main()
 	serverAddr.sin_port = htons(7777); // PORT, htons -> 엔디언 맞춰주는 함수
 
 	// 서버는 바인딩, 클라이언트는 커넥트
-	if (::connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
+	/*if (::connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
 		return 0;
 
-	std::cout << "Connect to server!" << std::endl;
+	std::cout << "Connect to server!" << std::endl;*/
 
 	while (true)
 	{
 		// send buffer
 		char sendBuffer[100] = "hello";
-		__int32 resultCode = ::send(clientSocket, sendBuffer, sizeof(sendBuffer), 0);
+		int32 resultCode = ::sendto(clientSocket, sendBuffer, sizeof(sendBuffer), 0, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
 		if (resultCode == SOCKET_ERROR)
 			return 0;
+
+		cout << "send data" << endl;
+		this_thread::sleep_for(1s);
 	}
 
+	::closesocket(clientSocket);
 	::WSACleanup();
 
 }

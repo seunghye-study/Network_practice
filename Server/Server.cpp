@@ -1,16 +1,19 @@
+#include "pch.h"
+#include <thread>
 #include <vector>
 #include <mutex>
 #include <windows.h>
 #include <atomic>
 #include <iostream>
-#include "pch.h"
+
 using namespace std;
 
 // server
 // 1. 새로운 소켓 생성 (Socket)
 // 2. 소켓에 주소/포트 설정(bind)
-// 3. 소켓 오픈 (listen)
-// 4. 접속 (accept)
+//  ----------------------------- UDP
+// 3. 소켓 오픈 (listen) -------- TCP
+// 4. 접속 (accept) ------------- TCP
 // 5. 클라이언트와 통신
 
 int main()
@@ -25,8 +28,8 @@ int main()
 	// protocol : 0
 	// return : descriptor
 	// error : int32 형식으로 WSAGetLastError() 함수로 리턴
-	SOCKET listenSocket = ::socket(AF_INET, SOCK_STREAM, 0);
-	if (listenSocket == 0) return 0;
+	SOCKET listenSocket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (listenSocket == INVALID_SOCKET) return 0;
 
 	//2 Bind
 	// 연결 목적지 : IP, PORT 설정
@@ -40,35 +43,26 @@ int main()
 
 	::bind(listenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
 
-	//3 listen
-	if (::listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) return 0;
+	////3 listen
+	//if (::listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) return 0;
 
 	//4 accept
 	while (true)
 	{
 		SOCKADDR_IN clientAddr;
 		::memset(&clientAddr, 0, sizeof(clientAddr));
-		__int32 addrLen = sizeof(clientAddr);
-
-		// 대기 -> 클라이언트에서 접속하기 전까지는 대기한다
-		SOCKET clientSocket = ::accept(listenSocket, (SOCKADDR*)&clientAddr, &addrLen);
-		if (clientSocket == INVALID_SOCKET) return 0;
-
-
-		char ip[16];
-		::inet_ntop(AF_INET, &clientAddr.sin_addr, ip, sizeof(ip));
-		cout << "Client Connected, IP :" << ip << endl;
+		int32 addrLen = sizeof(clientAddr);
 
 		// 패킷 주고받기
 		while (true)
 		{
 			char recvBuffer[100];
-			__int32 recvLen = ::recv(clientSocket, recvBuffer, sizeof(recvBuffer), 0);
-			if (recvBuffer <= 0)
+			int32 recvLen = ::recvfrom(listenSocket, recvBuffer, sizeof(recvBuffer), 0, (SOCKADDR*)&clientAddr, &addrLen);
+			if (recvLen <= 0)
 				return 0;
 
 			cout << "Recv buffer :" << recvBuffer << endl;
-
+			this_thread::sleep_for(1s);
 		}
 	}
 

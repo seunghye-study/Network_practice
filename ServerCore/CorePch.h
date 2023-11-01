@@ -19,10 +19,13 @@ using namespace std;
 
 // 여기 순서 잘 맞춰야함
 #include <winsock2.h>
+#include <MSWSock.h>
 #include <WS2tcpip.h>
 #include <stdio.h>
 #include <Windows.h>
+#include <assert.h>
 
+#include "SocketUtils.h"
 
 // linking with WS2_32.lib (라이브러리 링킹)
 #pragma comment(lib, "ws2_32.lib")

@@ -2,69 +2,69 @@
 #include <thread>
 #include <vector>
 #include <mutex>
+
+using namespace std;
 #include <windows.h>
 #include <atomic>
 #include <iostream>
-
-using namespace std;
-
-// server
-// 1. 새로운 소켓 생성 (Socket)
-// 2. 소켓에 주소/포트 설정(bind)
-//  ----------------------------- UDP
-// 3. 소켓 오픈 (listen) -------- TCP
-// 4. 접속 (accept) ------------- TCP
-// 5. 클라이언트와 통신
+#include "TestMain.h"
+#include "ThreadManager.h"
 
 int main()
 {
-	WSADATA wsaData;
-	if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+	SocketUtils::Init();
+
+	SOCKET listenSocket = ::socket(AF_INET, SOCK_STREAM, 0);
+	if (listenSocket == INVALID_SOCKET)
 		return 0;
 
-	// 1 소켓 생성
-	// af : address family (af_inet : ipv4, af_inet6 : ipv6)
-	// type : TCP = SOCK_STREAM, UDP = SOCK_DGRAM
-	// protocol : 0
-	// return : descriptor
-	// error : int32 형식으로 WSAGetLastError() 함수로 리턴
-	SOCKET listenSocket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (listenSocket == INVALID_SOCKET) return 0;
+	u_long on = 1;
+	if (::ioctlsocket(listenSocket, FIONBIO, &on) == INVALID_SOCKET)
+		return 0;
 
-	//2 Bind
-	// 연결 목적지 : IP, PORT 설정
-	SOCKADDR_IN serverAddr;
-	::memset(&serverAddr, 0, sizeof(serverAddr));
+	SocketUtils::SetReuseAddress(listenSocket, true);
 
-	// 구조체에 정보를 채워주는 것
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_addr.s_addr = ::htonl(INADDR_ANY); // IP
-	serverAddr.sin_port = htons(7777); // PORT
+	if (SocketUtils::BindAnyAddress(listenSocket, 7777) == false) 
+		return 0;
 
-	::bind(listenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
+	if (SocketUtils::Listen(listenSocket, SOMAXCONN) == false)
+		return 0;
 
-	////3 listen
-	//if (::listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) return 0;
+	SOCKADDR_IN clientAddr;
+	int32 addrLen = sizeof(clientAddr);
 
-	//4 accept
+
+	//accept 
 	while (true)
 	{
-		SOCKADDR_IN clientAddr;
-		::memset(&clientAddr, 0, sizeof(clientAddr));
-		int32 addrLen = sizeof(clientAddr);
+		SOCKET clientSocket = ::accept(listenSocket, (SOCKADDR*)&clientAddr, &addrLen);
+		if (clientSocket == INVALID_SOCKET)
+		{
+			//니가 논블로킹으로 하라며.. 클라가 안들어오면 대기해야하는데..
+			if (::WSAGetLastError() == WSAEACCES)
+			{
+				cout << "WSAGetLastError" << endl;
+				continue;
+			}
+		}
+		cout << "client connected!" << endl;
 
-		// 패킷 주고받기
+		//Recv
 		while (true)
 		{
-			char recvBuffer[100];
-			int32 recvLen = ::recvfrom(listenSocket, recvBuffer, sizeof(recvBuffer), 0, (SOCKADDR*)&clientAddr, &addrLen);
-			if (recvLen <= 0)
-				return 0;
+			char recvBuffer[1000];
+			int32 recvLen = ::recv(clientSocket, recvBuffer, sizeof(recvBuffer), 0);
+			if (recvLen == SOCKET_ERROR)
+			{
+				if (::WSAGetLastError() == WSAEWOULDBLOCK)
+					continue;
 
-			cout << "Recv buffer :" << recvBuffer << endl;
-			this_thread::sleep_for(1s);
+				//TODO
+				break;
+			}
+			cout << "recv data = " << recvBuffer << endl;
+			cout << "recv data len = " << recvLen << endl;
 		}
 	}
-
-	::WSACleanup();
+	SocketUtils::Close(listenSocket);
 }

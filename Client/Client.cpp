@@ -1,58 +1,51 @@
 #include "pch.h"
 #include <iostream>
-#include <WinSock2.h>
-
-
-
-//클라이언트
-// 1 소켓 생성
-// 2 서버에 요청
-// 3 통신
-
-// 엔디언 방식
-// 리틀 엔디언 (우리가 사용하는 방식)
-// -- 주소를 큰수부터 거꾸로 적어나가기 (오른쪽 -> 왼쪽)
-// 빅 엔디언 (네트워크 표준)
-// -- 주소를 차례대로 적어나가기 (왼쪽 -> 오른쪽)
-
 
 int main()
 {
-	WSADATA wsaData;
-	if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+	SocketUtils::Init();
+
+	SOCKET clientSocket = ::socket(AF_INET, SOCK_STREAM, 0);
+	if (clientSocket == INVALID_SOCKET)
+		return 0;
+	u_long on = 1;
+	if (::ioctlsocket(clientSocket, FIONBIO, &on) == INVALID_SOCKET)
 		return 0;
 
-	SOCKET clientSocket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (clientSocket == 0) return 0;
-
-
-	// 연결할 서버의 주소
 	SOCKADDR_IN serverAddr;
 	::memset(&serverAddr, 0, sizeof(serverAddr));
 	serverAddr.sin_family = AF_INET;
-	//serverAddr.sin_addr.s_addr = ::htonl(INADDR_ANY); // IP
 	::inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr);
-	serverAddr.sin_port = htons(7777); // PORT, htons -> 엔디언 맞춰주는 함수
+	serverAddr.sin_port = ::htons(7777); // 80 : HTTP
 
-	// 서버는 바인딩, 클라이언트는 커넥트
-	/*if (::connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
-		return 0;
 
-	std::cout << "Connect to server!" << std::endl;*/
-
+	// connect
 	while (true)
 	{
-		// send buffer
-		char sendBuffer[100] = "hello";
-		int32 resultCode = ::sendto(clientSocket, sendBuffer, sizeof(sendBuffer), 0, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
-		if (resultCode == SOCKET_ERROR)
-			return 0;
+		if (::connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
+		{
+			if (::WSAGetLastError() == WSAEWOULDBLOCK) continue;
+			if (::WSAGetLastError() == WSAEISCONN) break;
+		}
+	}
 
-		cout << "send data" << endl;
+	//send
+	while (true)
+	{
+		char sendBuffer[100] = "Hello I am Client!";
+		int32 sendLen = sizeof(sendBuffer);
+
+		if (::send(clientSocket, sendBuffer, sendLen, 0) == SOCKET_ERROR)
+		{
+			// 원래 블록했어야 했는데 ... 너가 논블로킹 하라며?
+			if (::WSAGetLastError() == WSAEWOULDBLOCK)
+				continue;
+			
+		}
+		cout << "Send Data ! Len = " << sendLen << endl;
 		this_thread::sleep_for(1s);
 	}
 
-	::closesocket(clientSocket);
-	::WSACleanup();
+	SocketUtils::Close(clientSocket);
 
 }
